@@ -1,10 +1,6 @@
-// ignore_for_file: library_private_types_in_public_api, empty_catches
-
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert'; // For base64 encoding
-import 'dart:typed_data';
+import 'dart:convert';
 
 class FormsPage extends StatefulWidget {
   const FormsPage({super.key});
@@ -14,95 +10,186 @@ class FormsPage extends StatefulWidget {
 }
 
 class _FormsPageState extends State<FormsPage> {
-  final titleController = TextEditingController();
-  final fieldController = TextEditingController();
-  Uint8List? _imageBytes; // To store the picked image bytes
-  String? _imageName; // To store the image name
-  String? _base64Image; // To store the Base64 encoded image
+  List<dynamic> _forms = [];
+  bool _isLoading = true;
+  dynamic _selectedForm; // Track the selected form
+  double _dividerPosition =
+      240.0; // Initial position of the divider (left panel width)
+  final double _thumbnailSize = 120.0; // Fixed size for each thumbnail
 
-  // Function to pick an image using FilePicker
-  Future<void> _pickImage() async {
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-      );
-
-      if (result != null && result.files.single.bytes != null) {
-        setState(() {
-          _imageBytes = result.files.single.bytes;
-          _imageName = result.files.single.name;
-          _base64Image = base64Encode(_imageBytes!);
-        });
-      } else {}
-    } catch (e) {}
+  @override
+  void initState() {
+    super.initState();
+    _fetchForms();
   }
 
-  // Function to save form data
-  Future<void> _saveFormData() async {
-    final title = titleController.text;
-    final fields = fieldController.text;
-
-    if (title.isEmpty || fields.isEmpty || _base64Image == null) {
-      return;
-    }
-
+  Future<void> _fetchForms() async {
     try {
-      final response = await http.post(
-        Uri.parse('http://localhost:5000/api/forms'), // Backend API URL
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'title': title,
-          'fields': fields,
-          'image': _base64Image, // Send the image as base64
-          'imageName': _imageName // Send the image name
-        }),
-      );
+      final response =
+          await http.get(Uri.parse('http://localhost:5000/api/forms'));
 
       if (response.statusCode == 200) {
-        titleController.clear();
-        fieldController.clear();
         setState(() {
-          _imageBytes = null;
-          _imageName = null;
-          _base64Image = null;
+          _forms = jsonDecode(response.body);
+          _isLoading = false;
         });
-      } else {}
-    } catch (e) {}
+      } else {
+        throw Exception('Failed to load forms');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching forms: $e')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          TextField(
-            controller: titleController,
-            decoration: const InputDecoration(hintText: 'Form Title'),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: fieldController,
-            decoration: const InputDecoration(hintText: 'Form Field'),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: _pickImage,
-            child: const Text('Pick Image'),
-          ),
-          const SizedBox(height: 10),
-          _imageBytes == null
-              ? const Text('No image selected.')
-              : Image.memory(_imageBytes!, height: 100),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: _saveFormData,
-            child: const Text('Save Form'),
-          ),
-        ],
-      ),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Uploaded Forms')),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Row(
+              children: [
+                // Left Section: Thumbnail grid with fixed thumbnail size
+                Container(
+                  width: _dividerPosition,
+                  color: Colors.grey[100],
+                  child: _forms.isEmpty
+                      ? const Center(child: Text('No forms uploaded yet.'))
+                      : GridView.builder(
+                          padding: const EdgeInsets.all(8),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount:
+                                (_dividerPosition / _thumbnailSize).floor(),
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                            childAspectRatio: 1,
+                          ),
+                          itemCount: _forms.length,
+                          itemBuilder: (context, index) {
+                            final form = _forms[index];
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedForm = form;
+                                });
+                              },
+                              child: Card(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 5,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: const BorderRadius.vertical(
+                                          top: Radius.circular(8)),
+                                      child: AspectRatio(
+                                        aspectRatio: 1,
+                                        child: Image.network(
+                                          'http://localhost:5000${form['image']}',
+                                          fit: BoxFit.contain,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  const Icon(Icons.broken_image,
+                                                      size: 40),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+
+                // Middle Resizable Divider
+                GestureDetector(
+                  onHorizontalDragUpdate: (details) {
+                    setState(() {
+                      _dividerPosition += details.primaryDelta!;
+                      _dividerPosition = _dividerPosition.clamp(150.0, 400.0);
+                    });
+                  },
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.resizeColumn,
+                    child: Container(
+                      width: 12,
+                      color: Colors.grey[300],
+                      child: const Icon(
+                        Icons.drag_indicator,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Right Section: Selected form image (resizable)
+                Expanded(
+                  child: _selectedForm == null
+                      ? const Center(
+                          child: Text('Select a form to view image'),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.all(16),
+                          color: Colors.white,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Toolbar for image options
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.download),
+                                    tooltip: 'Download Image',
+                                    onPressed: () {
+                                      // Add functionality to download the image
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.zoom_in),
+                                    tooltip: 'Zoom In',
+                                    onPressed: () {
+                                      // Add functionality to zoom in
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    tooltip: 'Delete',
+                                    onPressed: () {
+                                      // Add functionality to delete the form
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              // Center the image in the right panel
+                              Expanded(
+                                child: Center(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      'http://localhost:5000${_selectedForm['image']}',
+                                      fit: BoxFit.contain,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const Icon(Icons.broken_image,
+                                                  size: 100),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ],
+            ),
     );
   }
 }

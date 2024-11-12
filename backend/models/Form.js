@@ -1,12 +1,11 @@
+// models/formModel.js
 import { model, Schema } from "mongoose";
 
 const formSchema = new Schema(
   {
     title: { type: String, required: true },
     fields: { type: String, required: true },
-    image: { type: String, required: true },
-    // imageName: { type: String, required: true },
-    // user: { type: Schema.Types.ObjectId, ref: "User" }, // Reference to User
+    image: { type: String, required: true }, // Path to image file
   },
   { timestamps: true }
 );

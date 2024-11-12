@@ -1,60 +1,28 @@
-import { model, Schema } from "mongoose";
-import bcrypt from "bcryptjs";
+import mongoose from "mongoose";
 
-// Define the User schema
-const userSchema = new Schema(
+const schema = new mongoose.Schema(
   {
-    username: {
+    name: {
       type: String,
-      required: [true, "Username is required"],
-      unique: true,
+      required: true,
+      trim: true,
     },
     email: {
       type: String,
-      lowercase: true,
-      required: [true, "Email can't be empty"],
-      match: [
-        /^([\w-\.]+@([\w-]+\.)+[\w-]{2,4})?$/,
-        "Email format is not correct",
-      ],
+      required: true,
       unique: true,
+      match: [/.+\@.+\..+/, "Please fill a valid email address"],
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
+      required: true,
+      minlength: 6,
     },
-    forms: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Form", // Reference to Form documents
-      },
-    ],
+    resetPasswordExpire: Date,
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-// Pre-save middleware to hash password before saving the user
-userSchema.pre("save", async function (next) {
-  const user = this;
-
-  if (!user.isModified("password")) {
-    return next();
-  }
-
-  try {
-    const salt = await bcrypt.genSalt(10);
-    const hash = await bcrypt.hash(user.password, salt);
-    user.password = hash;
-    next();
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Method to compare candidate password with the stored hashed password
-userSchema.methods.comparePassword = async function (candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
-
-// Export the User model
-export const User = model("User", userSchema);
+export const User = mongoose.model("User", schema);
