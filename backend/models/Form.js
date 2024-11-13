@@ -1,13 +1,10 @@
-// models/formModel.js
-import { model, Schema } from "mongoose";
+// models/Form.js
+import mongoose from "mongoose";
 
-const formSchema = new Schema(
-  {
-    title: { type: String, required: true },
-    fields: { type: String, required: true },
-    image: { type: String, required: true }, // Path to image file
-  },
-  { timestamps: true }
-);
+const formSchema = new mongoose.Schema({
+  title: String,
+  fields: Object,
+  images: [String], // Array to store paths of multiple images
+});
 
-export const Form = model("Form", formSchema);
+export const Form = mongoose.model("Form", formSchema);

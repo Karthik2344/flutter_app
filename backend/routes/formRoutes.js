@@ -1,4 +1,3 @@
-// routes/formRoutes.js
 import express from "express";
 import fs from "fs";
 import path from "path";
@@ -13,40 +12,52 @@ const __dirname = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, "../uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 
-// Endpoint to save form data
+// Endpoint to save form data with multiple images
 router.post("/", async (req, res) => {
-  const { title, fields, image, imageName } = req.body;
+  const { title, fields, images } = req.body; // Expecting an array of images
 
-  if (!image || !imageName) {
-    return res.status(400).json({ error: "Image data and name are required" });
+  if (!images || images.length === 0) {
+    return res.status(400).json({ error: "At least one image is required" });
   }
 
-  const imageBuffer = Buffer.from(image, "base64");
-  const imagePath = path.join(uploadsDir, imageName);
+  const imagePaths = [];
 
-  fs.writeFile(imagePath, imageBuffer, async (err) => {
-    if (err) {
-      console.error("Error saving image:", err);
-      return res.status(500).json({ error: "Failed to save image" });
+  for (const imageData of images) {
+    const { image, imageName } = imageData;
+
+    if (!image || !imageName) {
+      return res.status(400).json({ error: "Each image requires data and a name" });
     }
 
-    const newForm = new Form({
-      title,
-      fields,
-      image: `/uploads/${imageName}`,
-    });
+    const imageBuffer = Buffer.from(image, "base64");
+    const imagePath = path.join(uploadsDir, imageName);
 
     try {
-      const result = await newForm.save();
-      res.status(200).json(result);
+      fs.writeFileSync(imagePath, imageBuffer);
+      imagePaths.push(`/uploads/${imageName}`);
     } catch (err) {
-      console.error("Error saving form to DB:", err);
-      res.status(500).json({ error: "Failed to save form in the database" });
+      console.error("Error saving image:", err);
+      return res.status(500).json({ error: "Failed to save images" });
     }
+  }
+
+  // Save form data in the database with image paths
+  const newForm = new Form({
+    title,
+    fields,
+    images: imagePaths, // Save all image paths
   });
+
+  try {
+    const result = await newForm.save();
+    res.status(200).json(result);
+  } catch (err) {
+    console.error("Error saving form to DB:", err);
+    res.status(500).json({ error: "Failed to save form in the database" });
+  }
 });
 
-// Endpoint to fetch all forms
+// Endpoint to fetch all forms (with all images)
 router.get("/", async (req, res) => {
   try {
     const forms = await Form.find();

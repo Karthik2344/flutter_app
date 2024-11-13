@@ -86,5 +86,26 @@
       preloadFont("fonts/Your-Font-Chinese.woff2");
       preloadFont("fonts/Your-Font-Spanish.woff2");
     </script>
+    <script>
+      function selectFolder(callback) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.webkitdirectory = true; // Allows directory selection
+        input.multiple = true;
+    
+        input.onchange = (event) => {
+          const files = Array.from(event.target.files).map(file => ({
+            name: file.name,
+            path: file.webkitRelativePath,
+            size: file.size,
+            lastModified: file.lastModified
+          }));
+          callback(files);
+        };
+    
+        input.click();
+      }
+    </script>
+    
   </body>
 </html>

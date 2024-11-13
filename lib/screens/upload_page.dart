@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert'; // For base64 encoding
-import 'dart:typed_data';
 
 class UploadPage extends StatefulWidget {
   const UploadPage({super.key});
@@ -14,30 +13,38 @@ class UploadPage extends StatefulWidget {
 class _UploadPageState extends State<UploadPage> {
   final titleController = TextEditingController();
   final fieldController = TextEditingController();
-  Uint8List? _imageBytes; // To store the picked image bytes
-  String? _imageName; // To store the image name
-  String? _base64Image; // To store the Base64 encoded image
+  List<Map<String, String>> _images = []; // To store selected images data
 
-  // Function to pick an image using FilePicker
-  Future<void> _pickImage() async {
+  // Function to pick multiple images using FilePicker
+  Future<void> _pickImages() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.image,
-        allowMultiple: false,
+        allowMultiple: true, // Allow multiple files
       );
 
-      if (result != null && result.files.single.bytes != null) {
+      if (result != null) {
+        List<Map<String, String>> pickedImages = [];
+
+        for (var file in result.files) {
+          if (file.bytes != null) {
+            String base64Image = base64Encode(file.bytes!);
+            pickedImages.add({
+              "image": base64Image,
+              "imageName": file.name,
+            });
+          }
+        }
+
         setState(() {
-          _imageBytes = result.files.single.bytes;
-          _imageName = result.files.single.name;
-          _base64Image = base64Encode(_imageBytes!);
+          _images = pickedImages; // Store selected images
         });
       }
     } catch (e) {
       // Handle error
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error picking image: $e'),
+          content: Text('Error picking images: $e'),
         ),
       );
     }
@@ -48,10 +55,10 @@ class _UploadPageState extends State<UploadPage> {
     final title = titleController.text;
     final fields = fieldController.text;
 
-    if (title.isEmpty || fields.isEmpty || _base64Image == null) {
+    if (title.isEmpty || fields.isEmpty || _images.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please fill all fields and pick an image.'),
+          content: Text('Please fill all fields and pick images.'),
         ),
       );
       return;
@@ -64,8 +71,7 @@ class _UploadPageState extends State<UploadPage> {
         body: jsonEncode({
           'title': title,
           'fields': fields,
-          'image': _base64Image, // Send the image as base64
-          'imageName': _imageName // Send the image name
+          'images': _images, // Send the images array to backend
         }),
       );
 
@@ -73,9 +79,7 @@ class _UploadPageState extends State<UploadPage> {
         titleController.clear();
         fieldController.clear();
         setState(() {
-          _imageBytes = null;
-          _imageName = null;
-          _base64Image = null;
+          _images = []; // Clear selected images
         });
 
         // Show success message
@@ -121,13 +125,17 @@ class _UploadPageState extends State<UploadPage> {
           ),
           const SizedBox(height: 20),
           ElevatedButton(
-            onPressed: _pickImage,
-            child: const Text('Pick Image'),
+            onPressed: _pickImages,
+            child: const Text('Pick Images'),
           ),
           const SizedBox(height: 10),
-          _imageBytes == null
-              ? const Text('No image selected.')
-              : Image.memory(_imageBytes!, height: 100),
+          _images.isEmpty
+              ? const Text('No images selected.')
+              : Wrap(
+                  spacing: 10,
+                  children:
+                      _images.map((img) => const Icon(Icons.image)).toList(),
+                ),
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: _saveFormData,
